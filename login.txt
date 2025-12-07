@@ -219,6 +219,11 @@ class LoginPage:
                         else:
                             msg.error(message)
     
+    def show_dashboard_message(self):
+        """Show message when user is logged in"""
+        st.success(f"Logged in as {st.session_state.user['username']}. Dashboard coming soon...")
+
+
 class LoginApp:
     """Main application class"""
     
@@ -228,7 +233,10 @@ class LoginApp:
     
     def run(self):
         """Run the login app"""
-        self.login_page.render()
+        if st.session_state.logged_in:
+            self.login_page.show_dashboard_message()
+        else:
+            self.login_page.render()
 
 
 # ==================== MAIN ENTRY POINT ====================
