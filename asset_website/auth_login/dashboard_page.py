@@ -26,14 +26,14 @@ class DashboardManager:
                 'value': 3006,
                 'change': '-4.54%',
                 'label': 'SINCE LAST MONTH',
-                'icon': '🔄',
+                'icon': '🔩━🛢️',
                 'color': '#16213e'
             },
             'terminals': {
                 'value': '60%',
                 'change': '+2.64%',
                 'label': 'SINCE LAST MONTH',
-                'icon': '📊',
+                'icon': '🖥️ ➤',
                 'color': '#0f3460'
             },
             'assets': {

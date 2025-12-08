@@ -86,7 +86,7 @@ class AuthenticationManager:
     
     def create_user(self, username: str, password: str, email: str = None, 
                    full_name: str = None, phone_number: str = None,
-                   is_admin: bool = False, created_by: int = None) -> Optional[Dict]:
+                   is_admin: bool = False, created_by: int = None, extra: str = None) -> Optional[Dict]:
         """Create a new user with hashed password"""
         if not username or not password:
             raise ValueError("Username and password are required")
@@ -108,7 +108,7 @@ class AuthenticationManager:
         try:
             with self.get_cursor() as cur:
                 cur.execute(query, (username, password_hash, email, full_name, 
-                                   phone_number, is_admin, created_by, None))
+                                   phone_number, is_admin, created_by, extra))
                 result = cur.fetchone()
                 return dict(result) if result else None
         except Exception as e:
@@ -249,6 +249,24 @@ class AuthenticationManager:
                 return [dict(row) for row in rows]
         except Exception as e:
             logging.error(f"Error fetching user roles: {e}")
+            return []
+    
+    def get_all_roles(self) -> List[Dict]:
+        """Get all active roles"""
+        query = """
+            SELECT id, name, description, is_active
+            FROM roles
+            WHERE is_active = TRUE
+            ORDER BY name
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query)
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logging.error(f"Error fetching roles: {e}")
             return []
     
     def get_role_by_name(self, role_name: str) -> Optional[Dict]:
