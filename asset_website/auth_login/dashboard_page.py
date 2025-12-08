@@ -1,6 +1,7 @@
 import streamlit as st
 import sys
 import os
+import time
 from typing import Dict, List, Optional
 from auth_login.database import AuthenticationManager
 
@@ -106,6 +107,17 @@ class DashboardPage:
     /* Main Content */
     [data-testid="stMainBlockContainer"] {
         padding: 20px 40px !important;
+        animation: fadeIn 0.15s ease-in;
+    }
+    
+    /* Fade-in animation to mask content flash */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
     }
     
     /* App Header with Gradient */

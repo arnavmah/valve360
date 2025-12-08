@@ -251,6 +251,41 @@ class AuthenticationManager:
             logging.error(f"Error fetching user roles: {e}")
             return []
     
+
+    def create_role(self, name: str, description: str = None, created_by: int = None) -> Optional[Dict]:
+        """Create a new role"""
+        if not name:
+            raise ValueError("Role name is required")
+        
+        # Check if role already exists
+        query_check = "SELECT id FROM roles WHERE name = %s"
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query_check, (name,))
+                if cur.fetchone():
+                    raise ValueError(f"Role '{name}' already exists")
+        except ValueError:
+            raise
+        except Exception as e:
+            logging.error(f"Error checking role: {e}")
+            raise
+        
+        query = """
+            INSERT INTO roles (name, description, created_by, is_active)
+            VALUES (%s, %s, %s, TRUE)
+            RETURNING id, name, description, created_by, is_active
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (name, description, created_by))
+                result = cur.fetchone()
+                return dict(result) if result else None
+        except Exception as e:
+            logging.error(f"Error creating role: {e}")
+            raise
+
+
     def get_all_roles(self) -> List[Dict]:
         """Get all active roles"""
         query = """
@@ -351,6 +386,61 @@ class AuthenticationManager:
             logging.error(f"Error fetching permissions: {e}")
             return []
     
+    def create_permission(self, name: str, description: str = None, 
+                         module: str = None, action: str = None) -> Optional[Dict]:
+        """Create a new permission"""
+        if not name:
+            raise ValueError("Permission name is required")
+        
+        # Check if permission already exists
+        query_check = "SELECT id FROM permissions WHERE name = %s"
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query_check, (name,))
+                if cur.fetchone():
+                    raise ValueError(f"Permission '{name}' already exists")
+        except ValueError:
+            raise
+        except Exception as e:
+            logging.error(f"Error checking permission: {e}")
+            raise
+        
+        query = """
+            INSERT INTO permissions (name, description, module, action)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, name, description, module, action
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (name, description, module, action))
+                result = cur.fetchone()
+                return dict(result) if result else None
+        except Exception as e:
+            logging.error(f"Error creating permission: {e}")
+            raise
+    
+
+    
+    def get_role_permissions(self, role_id: int) -> List[Dict]:
+        """Get all permissions assigned to a role"""
+        query = """
+            SELECT p.id, p.name, p.description, p.module, p.action
+            FROM permissions p
+            INNER JOIN permission_roles pr ON p.id = pr.permission_id
+            WHERE pr.role_id = %s
+            ORDER BY p.module, p.action
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (role_id,))
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logging.error(f"Error fetching role permissions: {e}")
+            return []
+    
     # ==================== USER MANAGEMENT ====================
     
     def get_all_users(self) -> List[Dict]:
@@ -408,6 +498,72 @@ class AuthenticationManager:
         except Exception as e:
             logging.error(f"Error updating user info: {e}")
             return False
+    
+    def update_user(self, user_id: int, username: str = None, email: str = None, 
+                   full_name: str = None, phone_number: str = None, 
+                   is_admin: bool = None, is_active: bool = None) -> Optional[Dict]:
+        """Update user information comprehensively"""
+        # Build dynamic query based on provided fields
+        update_fields = []
+        params = []
+        
+        if username is not None:
+            # Check if username already exists for another user
+            query_check = "SELECT id FROM users WHERE username = %s AND id != %s"
+            try:
+                with self.get_cursor() as cur:
+                    cur.execute(query_check, (username, user_id))
+                    if cur.fetchone():
+                        raise ValueError(f"Username '{username}' already exists")
+            except ValueError:
+                raise
+            except Exception as e:
+                logging.error(f"Error checking username: {e}")
+                raise
+            
+            update_fields.append("username = %s")
+            params.append(username)
+        
+        if email is not None:
+            update_fields.append("email = %s")
+            params.append(email)
+        
+        if full_name is not None:
+            update_fields.append("full_name = %s")
+            params.append(full_name)
+        
+        if phone_number is not None:
+            update_fields.append("phone_number = %s")
+            params.append(phone_number)
+        
+        if is_admin is not None:
+            update_fields.append("is_admin = %s")
+            params.append(is_admin)
+        
+        if is_active is not None:
+            update_fields.append("is_active = %s")
+            params.append(is_active)
+        
+        if not update_fields:
+            return self.get_user_by_id(user_id)
+        
+        params.append(user_id)
+        query = f"""
+            UPDATE users
+            SET {', '.join(update_fields)}
+            WHERE id = %s
+            RETURNING id, username, email, full_name, phone_number, 
+                     is_admin, is_active, last_login, created_by
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, params)
+                result = cur.fetchone()
+                return dict(result) if result else None
+        except Exception as e:
+            logging.error(f"Error updating user: {e}")
+            raise
     
     def deactivate_user(self, user_id: int) -> bool:
         """Deactivate a user"""
