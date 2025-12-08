@@ -27,3 +27,11 @@ Thumbs.db
 
 # Cache
 .cache/
+
+# login.txt
+# main.txt
+# admin.txt
+# dasboarch.txt
+# database_content.py
+# schema.txt
+
