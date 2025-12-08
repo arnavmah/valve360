@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from auth_login.login_page import LoginApp
 from auth_login.dashboard_page import DashboardApp
-from admin_panel.admin_panel import AdminPanelApp
+from admin_panel import AdminPanelApp
 
 def main():
     """Main entry point for the Streamlit app"""

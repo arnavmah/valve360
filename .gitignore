@@ -28,10 +28,12 @@ Thumbs.db
 # Cache
 .cache/
 
-# login.txt
-# main.txt
-# admin.txt
-# dasboarch.txt
-# database_content.py
-# schema.txt
+login.txt
+main.txt
+admin.txt
+dasboarch.txt
+database_content.py
+schema.txt
+admin_panel_old.py
+
 
