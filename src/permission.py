@@ -3,9 +3,9 @@ import os
 from typing import Dict, List, Optional
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth_login'))
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'auth_login'))
 
-from database import AuthenticationManager
+from ..auth_login.database import AuthenticationManager
 
 class PermissionManager:
     """Permission manager for role-based access control"""

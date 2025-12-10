@@ -5,7 +5,6 @@ Coordinates all admin panel components and handles navigation
 
 import streamlit as st
 from auth_login.database import AuthenticationManager
-from admin_panel.styles import CSS_STYLES
 from admin_panel.user_management import UserManagementTab
 from admin_panel.access_control import AccessControlTab
 from admin_panel.user_activity import UserActivityTab
@@ -17,7 +16,6 @@ class AdminPanelPage:
     def __init__(self):
         """Initialize admin panel page"""
         self.auth_manager = AuthenticationManager()
-        self._apply_styles()
         
         # Initialize tab components
         self.user_management = UserManagementTab(self.auth_manager)
@@ -27,10 +25,6 @@ class AdminPanelPage:
         # Initialize session state for current section
         if 'admin_section' not in st.session_state:
             st.session_state.admin_section = 'view_assessment'
-    
-    def _apply_styles(self):
-        """Apply custom CSS styles"""
-        st.markdown(CSS_STYLES, unsafe_allow_html=True)
     
     def _render_sidebar(self):
         """Render sidebar with navigation"""
@@ -87,14 +81,10 @@ class AdminPanelPage:
     
     def _render_new_assignment(self):
         """Render New Assignment section"""
-        st.markdown('''
-            <div class="content-card">
-                <h2>➕ New Assignment</h2>
-                <p>This section will allow you to create new assignments.</p>
-                <br>
-                <p style="color: #9ca3af;">Coming soon: Assignment creation form...</p>
-            </div>
-        ''', unsafe_allow_html=True)
+        st.header("➕ New Assignment")
+        st.write("This section will allow you to create new assignments.")
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.caption("Coming soon: Assignment creation form...")
     
     def render(self):
         """Render the complete admin panel page"""
@@ -109,11 +99,7 @@ class AdminPanelPage:
         self._render_sidebar()
         
         # App Header
-        st.markdown('''
-            <div class="app-header">
-                <h1>⚙️ Admin Panel</h1>
-            </div>
-        ''', unsafe_allow_html=True)
+        st.title("⚙️ Admin Panel")
         
         # Render content based on selected section
         current_section = st.session_state.get('admin_section', 'view_assessment')

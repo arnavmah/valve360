@@ -135,103 +135,22 @@ class AccessControlTab:
                         key = f"{module}_{action}"
                         perm_lookup[key] = perm
                     
-                    # Create matrix HTML with proper styling
-                    matrix_html = """
-                    <style>
-                    .permission-matrix-wrapper {
-                        max-height: 400px;
-                        overflow-y: auto;
-                        border-radius: 12px;
-                        margin: 20px 0;
-                        position: relative;
-                    }
-                    .permission-matrix {
-                        width: 100%;
-                        border-collapse: collapse;
-                        background: rgba(26, 26, 46, 0.6);
-                    }
-                    .permission-matrix thead tr {
-                        position: sticky;
-                        top: 0;
-                        z-index: 10;
-                    }
-                    .permission-matrix th {
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 15px;
-                        text-align: center;
-                        font-weight: 600;
-                        font-size: 1em;
-                        border: 1px solid rgba(255, 255, 255, 0.1);
-                        position: sticky;
-                        top: 0;
-                    }
-                    .permission-matrix td {
-                        padding: 12px;
-                        text-align: center;
-                        border: 1px solid rgba(255, 255, 255, 0.1);
-                        color: #fff;
-                        background: rgba(26, 26, 46, 0.6);
-                    }
-                    .permission-matrix tbody tr:hover td {
-                        background: rgba(102, 126, 234, 0.2);
-                    }
-                    .permission-matrix .module-cell {
-                        text-align: left;
-                        font-weight: 600;
-                        color: #e0e0e0;
-                        padding-left: 20px;
-                    }
-                    .check-icon {
-                        color: #10b981;
-                        font-size: 1.5em;
-                    }
-                    .cross-icon {
-                        color: #ef4444;
-                        font-size: 1.2em;
-                        opacity: 0.3;
-                    }
-                    </style>
-                    <div class="permission-matrix-wrapper">
-                    <table class="permission-matrix">
-                        <thead>
-                            <tr>
-                                <th>Module</th>
-"""
+                    # Create permission matrix data structure
+                    matrix_data = []
                     
-                    # Add action headers
-                    for action in actions:
-                        matrix_html += f"                                <th>{action.capitalize()}</th>\n"
-                    
-                    matrix_html += """                            </tr>
-                        </thead>
-                        <tbody>
-"""
-                    
-                    # Add rows for each module
                     for module in modules:
-                        matrix_html += f"""                            <tr>
-                                <td class="module-cell">📦 {module}</td>
-"""
-                        
+                        row = {"Module": f"📦 {module}"}
                         for action in actions:
                             key = f"{module}_{action}"
-                            if key in perm_lookup:
-                                # Permission exists - show checkmark
-                                matrix_html += '                                <td><span class="check-icon">✓</span></td>\n'
-                            else:
-                                # Permission doesn't exist - show cross
-                                matrix_html += '                                <td><span class="cross-icon">✕</span></td>\n'
-                        
-                        matrix_html += "                            </tr>\n"
+                            row[action.capitalize()] = "✓" if key in perm_lookup else "✕"
+                        matrix_data.append(row)
                     
-                    matrix_html += """                        </tbody>
-                    </table>
-                    </div>
-"""
-                    
-                    # Render the HTML table using markdown with unsafe_allow_html
-                    st.markdown(matrix_html, unsafe_allow_html=True)
+                    # Display using standard Streamlit dataframe
+                    st.dataframe(
+                        matrix_data, 
+                        use_container_width=True,
+                        hide_index=True
+                    )
                     
                     # Show total count
                     st.info(f"📊 Total Permissions: {len(permissions)} | Modules: {len(modules)} | Actions: {len(actions)}")

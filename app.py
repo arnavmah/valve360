@@ -11,6 +11,15 @@ from admin_panel import AdminPanelApp
 
 def main():
     """Main entry point for the Streamlit app"""
+    # st.set_page_config must be the first Streamlit command
+    st.set_page_config(
+            page_title="Valve 360",
+            layout="wide",
+            initial_sidebar_state="collapsed"
+        )
+    
+    # Initialize session state
+    
     # Initialize session state
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False

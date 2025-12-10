@@ -21,11 +21,9 @@ class UserActivityTab:
     
     def render(self):
         """Render the User Activity tab"""
-        st.markdown('''
-            <div class="content-card">
-                <h2>📊 User Activity</h2>
-                <p>Monitor user activities and system usage.</p>
-                <br>
-                <p style="color: #9ca3af;">Coming soon: Activity logs, login history, usage statistics...</p>
-            </div>
-        ''', unsafe_allow_html=True)
+    def render(self):
+        """Render the User Activity tab"""
+        st.header("📊 User Activity")
+        st.write("Monitor user activities and system usage.")
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.caption("Coming soon: Activity logs, login history, usage statistics...")
