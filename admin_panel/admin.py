@@ -8,6 +8,7 @@ from auth_login.database import AuthenticationManager
 from admin_panel.user_management import UserManagementTab
 from admin_panel.access_control import AccessControlTab
 from admin_panel.user_activity import UserActivityTab
+from admin_panel.styles import CSS_STYLES
 
 
 class AdminPanelPage:
@@ -97,6 +98,9 @@ class AdminPanelPage:
         
         # Render sidebar
         self._render_sidebar()
+        
+        # Apply shared styles
+        st.markdown(CSS_STYLES, unsafe_allow_html=True)
         
         # App Header
         st.title("⚙️ Admin Panel")

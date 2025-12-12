@@ -157,10 +157,44 @@ class UserManagementTab:
                     for role in all_roles:
                         role_name = role['name']
                         if role_name in users_by_role:
-                            st.markdown(f"#### 🔑 {role_name}")
+                            # Create two columns: role heading on left, Manage Users button on right
+                            col_role_title, col_manage_btn = st.columns([3, 1])
+                            
+                            with col_role_title:
+                                st.markdown(f"#### 🧩 {role_name}")
+                            
+                            with col_manage_btn:
+                                manage_btn_key = f"manage_Users_{role['id']}"
+                                if st.button("Manage Users", key=manage_btn_key, type="secondary"):
+                                    self._render_manage_Users_drawer(role['id'], role_name)
+                            
+                            # Add spacing between Manage Users button and user cards
+                            # st.markdown("<br>", unsafe_allow_html=True)
                             
                             for user in users_by_role[role_name]:
                                 self._render_user_card(user, suffix="role")
+                            
+                            st.markdown("<br>", unsafe_allow_html=True)
+                    
+                    # Display roles without users
+                    roles_without_users = [role for role in all_roles if role['name'] not in users_by_role]
+                    
+                    if roles_without_users:
+                        st.markdown("#### 🛠 Roles Without Users")
+                        # st.markdown("<br>", unsafe_allow_html=True)
+                        
+                        for role in roles_without_users:
+                            # Create two columns: role heading on left, Manage Users button on right
+                            col_role_title, col_manage_btn = st.columns([3, 1])
+                            
+                            with col_role_title:
+                                st.markdown(f"<p style='font-size: 1.2rem; margin: 0;'>🧩 {role['name']}</p>", unsafe_allow_html=True)
+                                st.markdown("_No users assigned_")
+                            
+                            with col_manage_btn:
+                                manage_btn_key = f"manage_Users_empty_{role['id']}"
+                                if st.button("Manage Users", key=manage_btn_key, type="secondary"):
+                                    self._render_manage_Users_drawer(role['id'], role['name'])
                             
                             st.markdown("<br>", unsafe_allow_html=True)
                 
@@ -218,6 +252,8 @@ class UserManagementTab:
                 
                 if st.button("✏️ Edit", key=f"edit_btn_{user.get('id')}_{suffix}"):
                     st.session_state[edit_key] = not st.session_state[edit_key]
+                    # Close the Manage Users drawer if it's open
+                    st.session_state['manage_Users_drawer_open'] = False
                     st.rerun()
                 
                 if st.button("🗑️ Deactivate", key=f"deactivate_{user.get('id')}_{suffix}"):
@@ -329,6 +365,8 @@ class UserManagementTab:
                     if updated_user:
                         st.success(f"✅ User '{edit_username}' updated successfully!")
                         st.session_state[edit_key] = False
+                        # Keep the Manage Users drawer closed
+                        st.session_state['manage_Users_drawer_open'] = False
                         st.rerun()
                     else:
                         st.error("Failed to update user")
@@ -339,4 +377,175 @@ class UserManagementTab:
         
         if cancel_submitted:
             st.session_state[edit_key] = False
+            # Keep the Manage Users drawer closed
+            st.session_state['manage_Users_drawer_open'] = False
             st.rerun()
+    
+    
+    @st.dialog("Manage Users", width="medium")
+    def _render_manage_Users_drawer(self, role_id, role_name):
+        """
+        Render the Manage Users modal dialog
+        
+        Args:
+            role_id: The ID of the role to manage users for
+            role_name: The name of the role
+        """
+        
+        # Header with subtle blue accent - works in both light and dark
+        st.markdown(f"""
+            <div style='background: rgba(59, 130, 246, 0.08); padding: 12px 16px; 
+                        margin: -1rem -1rem 1rem -1rem; border-radius: 8px 8px 0 0; 
+                        border-left: 4px solid rgba(59, 130, 246, 0.5);'>
+                <h3 style='margin: 0;'>Managing: <strong>{role_name}</strong></h3>
+                <p style='margin: 4px 0 0 0; font-size: 0.9rem; opacity: 0.8;'>Add or remove users assigned to this role</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Current Users Section with blue accent border
+        st.markdown("""
+            <h4 style='margin-bottom: 12px; border-left: 3px solid rgba(59, 130, 246, 0.6); 
+                       padding-left: 12px; margin-left: -8px;'>Current Users</h4>
+        """, unsafe_allow_html=True)
+        
+        try:
+            current_Users = self.auth.get_users_by_role(role_id)
+            
+            if current_Users:
+                # Initialize session state for Users to remove
+                if 'Users_to_remove' not in st.session_state:
+                    st.session_state['Users_to_remove'] = set()
+                
+                for member in current_Users:
+                    # Skip if marked for removal
+                    if member['id'] in st.session_state['Users_to_remove']:
+                        continue
+                    
+                    status_icon = "🟢" if member.get('is_active') else "🔴"
+                    status_text = "Active" if member.get('is_active') else "Inactive"
+                    
+                    # Create member item with columns
+                    col_member, col_status, col_remove = st.columns([3, 1, 1])
+                    
+                    with col_member:
+                        st.markdown(f"<p style='font-size: 1.05rem; margin: 0; font-weight: 600;'>{member['username']}</p>", unsafe_allow_html=True)
+                    
+                    with col_status:
+                        # Keep default text color, just adjust size and weight
+                        st.markdown(f"<p style='font-size: 0.95rem; margin: 0; opacity: 0.9;'>{status_icon} {status_text}</p>", unsafe_allow_html=True)
+                    
+                    with col_remove:
+                        if st.button("Remove", key=f"remove_{member['id']}", type="secondary", use_container_width=True):
+                            st.session_state['Users_to_remove'].add(member['id'])
+                            st.rerun()
+            else:
+                st.info("No Users currently assigned to this role")
+        
+        except Exception as e:
+            st.error(f"Error loading current Users: {str(e)}")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Add Users Section with blue accent border
+        st.markdown("""
+            <h4 style='margin-bottom: 12px; border-left: 3px solid rgba(59, 130, 246, 0.6); 
+                       padding-left: 12px; margin-left: -8px;'>Add Users</h4>
+        """, unsafe_allow_html=True)
+        
+        try:
+            available_users = self.auth.get_users_not_in_role(role_id)
+            
+            # Add removed users back to available list (they haven't been saved yet)
+            if 'Users_to_remove' in st.session_state:
+                removed_users = self.auth.get_users_by_role(role_id)
+                for user in removed_users:
+                    if user['id'] in st.session_state['Users_to_remove']:
+                        available_users.append(user)
+            
+            if available_users:
+                # Initialize session state for Users to add
+                if 'Users_to_add' not in st.session_state:
+                    st.session_state['Users_to_add'] = set()
+                
+                user_options = {user['username']: user['id'] for user in available_users}
+                
+                selected_users = st.multiselect(
+                    "Select users to add to this role",
+                    options=list(user_options.keys()),
+                    key="add_Users_dropdown",
+                    placeholder="Choose users...",
+                    label_visibility="collapsed"
+                )
+                
+                if selected_users:
+                    col_add1, col_add2 = st.columns([3, 1])
+                    with col_add2:
+                        if st.button("Add Selected", key="add_Users_btn", type="primary", use_container_width=True):
+                            for username in selected_users:
+                                st.session_state['Users_to_add'].add(user_options[username])
+                            st.rerun()
+                
+                # Show users that will be added (pending save)
+                if st.session_state.get('Users_to_add'):
+                    st.success("**Users to be added (pending save):**")
+                    for user in available_users:
+                        if user['id'] in st.session_state['Users_to_add']:
+                            st.markdown(f"<p style='font-size: 1.05rem; margin: 4px 0;'>- ✅ {user['username']}</p>", unsafe_allow_html=True)
+            else:
+                st.info("All active users are already assigned to this role")
+        
+        except Exception as e:
+            st.error(f"Error loading available users: {str(e)}")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Footer with Save/Cancel buttons
+        col_footer1, col_footer2, col_footer3 = st.columns([2, 1, 1])
+        
+        with col_footer2:
+            if st.button("Cancel", key="cancel_drawer", use_container_width=True):
+                # Clear session state
+                st.session_state['manage_Users_drawer_open'] = False
+                st.session_state.pop('Users_to_add', None)
+                st.session_state.pop('Users_to_remove', None)
+                st.session_state.pop('manage_Users_role_id', None)
+                st.session_state.pop('manage_Users_role_name', None)
+                st.rerun()
+        
+        with col_footer3:
+            if st.button("Save Changes", key="save_drawer", type="primary", use_container_width=True):
+                try:
+                    current_user_id = st.session_state.get('user_id')
+                    changes_made = False
+                    
+                    # Remove users
+                    if st.session_state.get('Users_to_remove'):
+                        for user_id in st.session_state['Users_to_remove']:
+                            if self.auth.remove_user_role(user_id, role_id):
+                                changes_made = True
+                    
+                    # Add users
+                    if st.session_state.get('Users_to_add'):
+                        for user_id in st.session_state['Users_to_add']:
+                            if self.auth.assign_role_to_user(user_id, role_id, current_user_id):
+                                changes_made = True
+                    
+                    if changes_made:
+                        st.success(f"✅ Successfully updated Users for '{role_name}'!")
+                    
+                    # Clear session state
+                    st.session_state['manage_Users_drawer_open'] = False
+                    st.session_state.pop('Users_to_add', None)
+                    st.session_state.pop('Users_to_remove', None)
+                    st.session_state.pop('manage_Users_role_id', None)
+                    st.session_state.pop('manage_Users_role_name', None)
+                    st.rerun()
+                
+                except Exception as e:
+                    st.error(f"❌ Error saving changes: {str(e)}")
+
+
+
+

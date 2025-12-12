@@ -146,10 +146,20 @@ class AuthenticationManager:
         
         if not self.verify_password(password, user['password_hash']):
             logging.warning(f"Failed login attempt for user: {username}")
+            # Record failed login attempt
+            self.record_login_attempt(user['id'], 'failed')
+            # Increment daily failed count
+            self.increment_daily_login_count('failed')
             return None
         
         # Update last login
         self.update_last_login(user['id'])
+        
+        # Record successful login attempt
+        self.record_login_attempt(user['id'], 'success')
+        
+        # Increment daily success count
+        self.increment_daily_login_count('success')
         
         # Remove password hash from response
         user_data = dict(user)
@@ -173,6 +183,122 @@ class AuthenticationManager:
         except Exception as e:
             logging.error(f"Error updating last login: {e}")
             return False
+    
+    def record_login_attempt(self, user_id: int, login_status: str = 'success') -> bool:
+        """
+        Record a login attempt in the user_logins table.
+        
+        Args:
+            user_id: The ID of the user attempting to login
+            login_status: Status of the login attempt ('success' or 'failed')
+        
+        Returns:
+            bool: True if recorded successfully, False otherwise
+        """
+        query = """
+            INSERT INTO user_logins (user_id, login_time, login_status)
+            VALUES (%s, CURRENT_TIMESTAMP, %s)
+            RETURNING id
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (user_id, login_status))
+                return cur.fetchone() is not None
+        except Exception as e:
+            logging.error(f"Error recording login attempt: {e}")
+            return False
+    
+    def increment_daily_login_count(self, login_status: str = 'success') -> bool:
+        """
+        Increment the daily login count for today's date.
+        Uses PostgreSQL's UPSERT to either create a new record or increment existing count.
+        
+        Args:
+            login_status: Status of the login ('success' or 'failed')
+        
+        Returns:
+            bool: True if updated successfully, False otherwise
+        """
+        if login_status == 'success':
+            query = """
+                INSERT INTO user_daily_login (date_stamp, success_count, failed_count)
+                VALUES (CURRENT_DATE, 1, 0)
+                ON CONFLICT (date_stamp)
+                DO UPDATE SET success_count = user_daily_login.success_count + 1
+                RETURNING id
+            """
+        else:  # failed
+            query = """
+                INSERT INTO user_daily_login (date_stamp, success_count, failed_count)
+                VALUES (CURRENT_DATE, 0, 1)
+                ON CONFLICT (date_stamp)
+                DO UPDATE SET failed_count = user_daily_login.failed_count + 1
+                RETURNING id
+            """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query)
+                return cur.fetchone() is not None
+        except Exception as e:
+            logging.error(f"Error incrementing daily login count: {e}")
+            return False
+    
+    def get_daily_login_stats(self, days: int = 30) -> List[Dict]:
+        """
+        Get daily login statistics for the last N days.
+        
+        Args:
+            days: Number of days to retrieve (default: 30)
+        
+        Returns:
+            List of dictionaries containing date_stamp, success_count, and failed_count
+        """
+        query = """
+            SELECT date_stamp, success_count, failed_count
+            FROM user_daily_login
+            WHERE date_stamp >= CURRENT_DATE - INTERVAL '%s days'
+            ORDER BY date_stamp DESC
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (days,))
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logging.error(f"Error fetching daily login stats: {e}")
+            return []
+    
+    def get_top_users_by_login_count(self, limit: int = 10) -> List[Dict]:
+        """
+        Get top users by their total login count.
+        
+        Args:
+            limit: Number of top users to retrieve (default: 10)
+        
+        Returns:
+            List of dictionaries containing user_id, username, and login_count
+        """
+        query = """
+            SELECT u.id as user_id, u.username, COUNT(ul.id) as login_count
+            FROM users u
+            INNER JOIN user_logins ul ON u.id = ul.user_id
+            WHERE ul.login_status = 'success' AND u.is_active = TRUE
+            GROUP BY u.id, u.username
+            ORDER BY login_count DESC
+            LIMIT %s
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (limit,))
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logging.error(f"Error fetching top users by login count: {e}")
+            return []
     
     def get_user_by_id(self, user_id: int) -> Optional[Dict]:
         """Get user by ID"""
@@ -249,6 +375,49 @@ class AuthenticationManager:
                 return [dict(row) for row in rows]
         except Exception as e:
             logging.error(f"Error fetching user roles: {e}")
+            return []
+    
+    def get_users_by_role(self, role_id: int) -> List[Dict]:
+        """Get all users assigned to a specific role"""
+        query = """
+            SELECT u.id, u.username, u.email, u.full_name, u.phone_number, 
+                   u.is_admin, u.is_active, u.last_login
+            FROM users u
+            JOIN user_roles ur ON u.id = ur.user_id
+            WHERE ur.role_id = %s AND u.is_active = TRUE
+            ORDER BY u.username
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (role_id,))
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logging.error(f"Error fetching users by role: {e}")
+            return []
+    
+    def get_users_not_in_role(self, role_id: int) -> List[Dict]:
+        """Get all active users who are NOT assigned to a specific role"""
+        query = """
+            SELECT u.id, u.username, u.email, u.full_name, u.is_active
+            FROM users u
+            WHERE u.is_active = TRUE
+            AND u.id NOT IN (
+                SELECT user_id 
+                FROM user_roles 
+                WHERE role_id = %s
+            )
+            ORDER BY u.username
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (role_id,))
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logging.error(f"Error fetching users not in role: {e}")
             return []
     
 
@@ -440,6 +609,100 @@ class AuthenticationManager:
         except Exception as e:
             logging.error(f"Error fetching role permissions: {e}")
             return []
+    
+    def get_available_permissions_for_role(self, role_id: int) -> List[Dict]:
+        """
+        Get all permissions that are NOT yet assigned to a specific role.
+        
+        Args:
+            role_id: The ID of the role
+        
+        Returns:
+            List of dictionaries containing permissions not assigned to the role
+        """
+        query = """
+            SELECT p.id, p.name, p.description, p.module, p.action
+            FROM permissions p
+            WHERE p.id NOT IN (
+                SELECT permission_id 
+                FROM permission_roles 
+                WHERE role_id = %s
+            )
+            ORDER BY p.module, p.action
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (role_id,))
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logging.error(f"Error fetching available permissions for role: {e}")
+            return []
+    
+    def assign_permission_to_role(self, role_id: int, permission_id: int, created_by: int = None) -> bool:
+        """
+        Assign a permission to a role.
+        
+        Args:
+            role_id: The ID of the role
+            permission_id: The ID of the permission to assign
+            created_by: The ID of the user making the assignment
+        
+        Returns:
+            bool: True if assigned successfully, False otherwise
+        """
+        # First check if the assignment already exists
+        check_query = """
+            SELECT id FROM permission_roles
+            WHERE permission_id = %s AND role_id = %s
+        """
+        
+        query = """
+            INSERT INTO permission_roles (permission_id, role_id, created_by)
+            VALUES (%s, %s, %s)
+            RETURNING id
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                # Check if already exists
+                cur.execute(check_query, (permission_id, role_id))
+                if cur.fetchone():
+                    logging.info(f"Permission {permission_id} already assigned to role {role_id}")
+                    return True  # Already assigned, consider it a success
+                
+                # Insert new assignment
+                cur.execute(query, (permission_id, role_id, created_by))
+                return cur.fetchone() is not None
+        except Exception as e:
+            logging.error(f"Error assigning permission to role: {e}")
+            return False
+    
+    def remove_permission_from_role(self, role_id: int, permission_id: int) -> bool:
+        """
+        Remove a permission from a role.
+        
+        Args:
+            role_id: The ID of the role
+            permission_id: The ID of the permission to remove
+        
+        Returns:
+            bool: True if removed successfully, False otherwise
+        """
+        query = """
+            DELETE FROM permission_roles
+            WHERE role_id = %s AND permission_id = %s
+            RETURNING id
+        """
+        
+        try:
+            with self.get_cursor() as cur:
+                cur.execute(query, (role_id, permission_id))
+                return cur.fetchone() is not None
+        except Exception as e:
+            logging.error(f"Error removing permission from role: {e}")
+            return False
     
     # ==================== USER MANAGEMENT ====================
     

@@ -104,22 +104,161 @@ class DashboardPage:
                 st.rerun()
     
     def _render_metrics(self):
-        """Render dashboard metrics using Streamlit columns"""
+        """Render dashboard metrics with beautiful cards that work in both light and dark modes"""
         metrics = self.dashboard_manager.get_dashboard_metrics()
+        
+        # Define icon mappings for each metric
+        metric_icons = {
+            'organizations': '🏢',
+            'pipelines': '🔩━🛢️',
+            'terminals': '🖥️ ➤',
+            'assets': '💼'
+        }
+        
+        # Custom CSS for beautiful metric cards
+        st.markdown("""
+        <style>
+        .metric-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%);
+            border-radius: 16px;
+            padding: 16px 20px;
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            transition: all 0.3s ease;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(59, 130, 246, 0.25);
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+        
+        .metric-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .metric-icon {
+            font-size: 40px;
+            opacity: 0.85;
+        }
+        
+        .metric-title {
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            opacity: 0.75;
+            margin-bottom: -2px;
+        }
+        
+        .metric-value {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .metric-change {
+            display: flex;
+            align-items: center;
+            font-size: 15px;
+            font-weight: 500;
+            margin-top: -2px;
+        }
+        
+        .metric-change.positive {
+            color: #00d4aa;
+        }
+        
+        .metric-change.negative {
+            color: #ff6b9d;
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            opacity: 0.65;
+            margin-left: 8px;
+            letter-spacing: 0.6px;
+        }
+        
+        /* Dark mode specific adjustments */
+        @media (prefers-color-scheme: dark) {
+            .metric-card {
+                background: linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(6, 182, 212, 0.12) 100%);
+                border-color: rgba(59, 130, 246, 0.3);
+            }
+            
+            .metric-card:hover {
+                box-shadow: 0 12px 36px rgba(59, 130, 246, 0.35);
+            }
+        }
+        
+        /* Light mode specific adjustments */
+        @media (prefers-color-scheme: light) {
+            .metric-card {
+                background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(6, 182, 212, 0.06) 100%);
+                border-color: rgba(59, 130, 246, 0.2);
+            }
+            
+            .metric-title, .metric-label {
+                opacity: 0.65;
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
         # Create 4 columns for the metric cards
         cols = st.columns(4)
         
         for idx, (key, data) in enumerate(metrics.items()):
-            title = key.replace('_', ' ').title()
+            title = key.replace('_', ' ').upper()
+            icon = metric_icons.get(key, '📊')
+            
+            # Determine if change is positive or negative
+            change_value = data['change']
+            is_positive = not change_value.startswith('-')
+            change_class = 'positive' if is_positive else 'negative'
+            change_symbol = '▲' if is_positive else '▼'
+            
+            # Format value - handle both numbers and strings
+            value = data['value']
+            if isinstance(value, (int, float)):
+                formatted_value = f"{value:,.0f}"
+            else:
+                formatted_value = str(value)
             
             with cols[idx]:
-                with st.container(border=True):
-                    st.metric(
-                        label=title,
-                        value=data['value'],
-                        delta=data['change']
-                    )
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <div class="metric-title">{title}</div>
+                        <div class="metric-icon">{icon}</div>
+                    </div>
+                    <div class="metric-value">{formatted_value}</div>
+                    <div class="metric-change {change_class}">
+                        <span>{change_symbol} {change_value}</span>
+                        <span class="metric-label">{data['label']}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
     
     def render(self):
         """Render the complete dashboard page"""
@@ -133,8 +272,86 @@ class DashboardPage:
         # Render sidebar
         self._render_sidebar()
         
-        # App Header with Valve 360 title
-        st.title("Valve 360 Dashboard")
+        # Add custom CSS for header and tab styling
+        st.markdown("""
+        <style>
+        /* Header Styling - Simple with underline */
+        .dashboard-header {
+            margin-bottom: 28px;
+        }
+        
+        .dashboard-header h1 {
+            font-size: 2.25rem;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+            margin: 0;
+            padding: 0;
+            margin-bottom: 8px;
+        }
+        
+        .header-underline {
+            height: 3px;
+            width: 64px;
+            border-radius: 9999px;
+            background: linear-gradient(to right, #3b82f6, #06b6d4);
+            margin-top: 4px;
+        }
+        
+        /* Tab Styling */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: transparent;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            background-color: transparent;
+            border-radius: 8px;
+            padding: 10px 20px;
+            transition: all 0.3s ease;
+            color: inherit !important;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(6, 182, 212, 0.1) 100%);
+            color: inherit !important;
+        }
+        
+        .stTabs [aria-selected="true"]::after {
+            background-color: #3b82f6 !important;
+        }
+        
+        .stTabs [data-baseweb="tab-highlight"] {
+            background-color: #3b82f6 !important;
+        }
+        
+        .stTabs [data-baseweb="tab"] p {
+            color: inherit !important;
+        }
+        
+        .stTabs [aria-selected="true"] p {
+            color: inherit !important;
+        }
+        
+        /* Dark mode adjustments */
+        @media (prefers-color-scheme: dark) {
+            .stTabs [aria-selected="true"] {
+                background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(6, 182, 212, 0.15) 100%);
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # App Header with simple underline design
+        st.markdown("""
+        <div class="dashboard-header">
+            <h1>Valve 360 Dashboard</h1>
+            <div class="header-underline"></div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Create tabs
         tab1, tab2 = st.tabs(["📊 Data Management", "🔍 Entity Overview"])

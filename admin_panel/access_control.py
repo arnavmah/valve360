@@ -264,5 +264,201 @@ class AccessControlTab:
     
     def _render_role_permission_assignment_tab(self):
         """Render the Role-Permission Assignment tab"""
-        st.markdown("### Role-Permission Assignment")
-        st.markdown("Coming soon: Assign permissions to roles")
+        st.markdown("### 🔗 Role-Permission Assignment")
+        st.markdown("Assign permissions to roles to control access throughout the system.")
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Initialize session state for toast messages
+        if 'permission_toast' not in st.session_state:
+            st.session_state.permission_toast = None
+        
+        # Display toast message if exists
+        if st.session_state.permission_toast:
+            if st.session_state.permission_toast['type'] == 'success':
+                st.success(f"✔ {st.session_state.permission_toast['message']}")
+            else:
+                st.error(f"✖ {st.session_state.permission_toast['message']}")
+            st.session_state.permission_toast = None
+        
+        # Wrap in column structure
+        col_left, col_center, col_right = st.columns([0.01, 0.98, 0.01])
+        
+        with col_center:
+            # Role selector
+            st.markdown("#### Select Role")
+            try:
+                roles = self.auth.get_all_roles()
+                
+                if not roles:
+                    st.info("No roles available. Please create a role first in the Roles tab.")
+                    return
+                
+                role_options = {f"{role['name']}": role['id'] for role in roles}
+                selected_role_name = st.selectbox(
+                    "Select Role",
+                    options=list(role_options.keys()),
+                    key="role_permission_selector",
+                    label_visibility="collapsed"
+                )
+                
+                selected_role_id = role_options[selected_role_name]
+                
+                # Get role description
+                selected_role = next((r for r in roles if r['id'] == selected_role_id), None)
+                if selected_role and selected_role.get('description'):
+                    st.caption(f"*{selected_role['description']}*")
+                
+                st.markdown("---")
+                
+                # Two-column layout for assigned and available permissions
+                col_assigned, col_available = st.columns(2)
+                
+                # LEFT COLUMN: Assigned Permissions
+                with col_assigned:
+                    st.markdown("#### ✅ Assigned Permissions")
+                    
+                    assigned_permissions = self.auth.get_role_permissions(selected_role_id)
+                    
+                    if assigned_permissions:
+                        # Group by module
+                        perms_by_module = {}
+                        for perm in assigned_permissions:
+                            module = perm.get('module', 'General')
+                            if module not in perms_by_module:
+                                perms_by_module[module] = []
+                            perms_by_module[module].append(perm)
+                        
+                        # Display permissions grouped by module with accordions
+                        for module, perms in sorted(perms_by_module.items()):
+                            with st.expander(f"📦 {module.capitalize()} ({len(perms)})", expanded=True):
+                                for perm in perms:
+                                    col_perm, col_btn = st.columns([0.75, 0.25])
+                                    
+                                    with col_perm:
+                                        # Display permission with icon
+                                        action = perm.get('action', 'N/A')
+                                        perm_name = perm.get('name', 'Unknown')
+                                        
+                                        # Icon based on action
+                                        icon = "•" 
+                                        
+                                        st.markdown(f"<span style='font-size: 1.1rem;'>{icon} <code>{perm_name}</code></span>", unsafe_allow_html=True)
+                                    
+                                    with col_btn:
+                                        # Remove button
+                                        if st.button(
+                                            "Remove",
+                                            key=f"remove_perm_{perm['id']}_{selected_role_id}",
+                                            type="secondary",
+                                            use_container_width=True
+                                        ):
+                                            if self.auth.remove_permission_from_role(selected_role_id, perm['id']):
+                                                st.session_state.permission_toast = {
+                                                    'type': 'success',
+                                                    'message': f"Permission '{perm_name}' removed from {selected_role_name}."
+                                                }
+                                                st.rerun()
+                                            else:
+                                                st.session_state.permission_toast = {
+                                                    'type': 'error',
+                                                    'message': f"Failed to remove permission '{perm_name}'."
+                                                }
+                                                st.rerun()
+
+                        
+                        st.info(f"📊 Total: {len(assigned_permissions)} permission(s)")
+                    else:
+                        st.markdown(
+                            """
+                            <div style='padding: 20px; text-align: center; color: #6b7280;'>
+                                <p style='margin: 0;'><strong>No permissions assigned yet.</strong></p>
+                                <p style='margin: 5px 0 0 0; font-size: 0.9em;'>Select permissions from the right panel to add them.</p>  
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                
+                # RIGHT COLUMN: Available Permissions
+                with col_available:
+                    st.markdown("#### 📋 Available Permissions")
+                    
+                    # Search bar
+                    search_query = st.text_input(
+                        "🔍 Search permissions...",
+                        placeholder="Enter keyword to filter permissions",
+                        key="permission_search",
+                        label_visibility="collapsed"
+                    )
+                    
+                    st.markdown("")  # Add spacing
+                    
+                    available_permissions = self.auth.get_available_permissions_for_role(selected_role_id)
+                    
+                    if available_permissions:
+                        # Filter by search query
+                        if search_query:
+                            filtered_permissions = [
+                                p for p in available_permissions
+                                if search_query.lower() in p.get('name', '').lower() or
+                                   search_query.lower() in p.get('module', '').lower() or
+                                   search_query.lower() in p.get('action', '').lower()
+                            ]
+                        else:
+                            filtered_permissions = available_permissions
+                        
+                        if filtered_permissions:
+                            # Group by module
+                            perms_by_module = {}
+                            for perm in filtered_permissions:
+                                module = perm.get('module', 'General')
+                                if module not in perms_by_module:
+                                    perms_by_module[module] = []
+                                perms_by_module[module].append(perm)
+                            
+                            # Display as compact accordions
+                            for module, perms in sorted(perms_by_module.items()):
+                                with st.expander(f"📦 {module.capitalize()} ({len(perms)})", expanded=False):
+                                    for perm in perms:
+                                        col_perm_name, col_assign_btn = st.columns([0.7, 0.3])
+                                        
+                                        with col_perm_name:
+                                            action = perm.get('action', 'N/A')
+                                            perm_name = perm.get('name', 'Unknown')
+                                            
+                                            # Icon based on action
+                                            icon = "🔍" if action == "view" else "➕" if action == "create" else "✏️" if action == "edit" else "🗑️" if action == "delete" else "🔹"
+                                            
+                                            st.markdown(f"<span style='font-size: 1.1rem;'>{icon} <code>{perm_name}</code></span>", unsafe_allow_html=True)
+                                            
+                                            # Show description if available
+                                            if perm.get('description'):
+                                                st.caption(perm['description'])
+                                        
+                                        with col_assign_btn:
+                                            if st.button(
+                                                "Assign",
+                                                key=f"assign_perm_{perm['id']}_{selected_role_id}",
+                                                type="primary",
+                                                use_container_width=True
+                                            ):
+                                                created_by = st.session_state.get('user_id', None)
+                                                if self.auth.assign_permission_to_role(selected_role_id, perm['id'], created_by):
+                                                    st.session_state.permission_toast = {
+                                                        'type': 'success',
+                                                        'message': f"Permission '{perm_name}' added to {selected_role_name}."
+                                                    }
+                                                    st.rerun()
+                                                else:
+                                                    st.session_state.permission_toast = {
+                                                        'type': 'error',
+                                                        'message': f"Failed to add permission '{perm_name}'."
+                                                    }
+                                                    st.rerun()
+                        else:
+                            st.info(f"No permissions found matching '{search_query}'")
+                    else:
+                        st.success("✨ All permissions have been assigned to this role!")
+                
+            except Exception as e:
+                st.error(f"Error loading role-permission assignment: {str(e)}")
+
